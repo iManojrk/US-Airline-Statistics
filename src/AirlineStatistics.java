@@ -11,6 +11,7 @@ import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.jobcontrol.ControlledJob;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.reduce.LongSumReducer;
 import taxitime.TaxiTimeMapper;
@@ -47,7 +48,6 @@ public class AirlineStatistics {
         FileInputFormat.setInputPaths(onTimeJob, inputPath);
         FileOutputFormat.setOutputPath(onTimeJob, new Path(tempDir.toString()
                 + "/AirlineOnTimeProbability"));
-        onTimeJob.submit();
 
         Job cancelCodeJob = Job.getInstance(conf, "AirlineCancellationCode");
         cancelCodeJob.setJarByClass(AirlineStatistics.class);
@@ -60,8 +60,6 @@ public class AirlineStatistics {
         FileOutputFormat.setOutputPath(cancelCodeJob, new Path(
                 tempDir.toString() + "/CancellationCode"));
 
-        cancelCodeJob.submit();
-
         Job taxiTimeJob = Job.getInstance(conf, "AirlineTaxiTime");
         taxiTimeJob.setJarByClass(AirlineStatistics.class);
         taxiTimeJob.setMapperClass(TaxiTimeMapper.class);
@@ -73,9 +71,9 @@ public class AirlineStatistics {
         FileInputFormat.setInputPaths(taxiTimeJob, inputPath);
         FileOutputFormat.setOutputPath(taxiTimeJob, new Path(tempDir.toString()
                 + "/TaxiTime"));
-        taxiTimeJob.submit();
-        onTimeJob.waitForCompletion(true);
-        cancelCodeJob.waitForCompletion(true);
-        taxiTimeJob.waitForCompletion(true);
+        ControlledJob mainJob = new ControlledJob(conf);
+        mainJob.addDependingJob(new ControlledJob(onTimeJob, null));
+        mainJob.addDependingJob(new ControlledJob(cancelCodeJob, null));
+        mainJob.addDependingJob(new ControlledJob(taxiTimeJob, null));
     }
 }
